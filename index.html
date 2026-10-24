@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KeyProof</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="#" aria-label="KeyProof home">
+      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><rect x="1" y="1" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5 10h7M10 7v6" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+      <span>KeyProof</span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="#how">How it works</a>
+      <a href="#finds">What it finds</a>
+      <a href="#scope">Scope</a>
+      <a class="btn" href="#check">Open checker</a>
+    </nav>
+  </header>
+
+  <main id="home">
+    <section class="hero">
+      <div>
+        <p class="tag">NEAR testnet · read only</p>
+        <h1>Prompts are not permissions.</h1>
+        <p class="sub">KeyProof reads an AI agent’s access keys on chain and proves whether it can exceed the spending policy a human wrote.</p>
+        <div class="row">
+          <a class="btn pri" href="#check">Check an agent’s keys</a>
+          <a class="btn" href="#how">How it works</a>
+        </div>
+        <p class="trust">Nothing is signed. No keys are requested.</p>
+      </div>
+      <div class="proof" id="proof" aria-label="Example verdict"></div>
+    </section>
+
+    <section class="sec" id="how">
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li><span class="n">1</span><h3>Write the policy</h3><p>Sentences in a fixed template: a daily cap, a contract allowlist, no full access keys, named methods only.</p><code>The agent may spend up to 5 NEAR per day.</code></li>
+        <li><span class="n">2</span><h3>Read the keys</h3><p>KeyProof queries the agent’s account and reads permission, allowance, receiver and method scope for every access key.</p><code>view_access_key_list</code></li>
+        <li><span class="n">3</span><h3>Read the verdict</h3><p>Each promise is marked holds, can be exceeded or unknown, with the key field that breaks it next to the sentence that promised otherwise.</p><code>keys[1].allowance = 12 NEAR</code></li>
+      </ol>
+    </section>
+
+    <section class="sec" id="finds">
+      <h2>What it finds</h2>
+      <div class="tbl" role="table">
+        <div class="tr th" role="row"><span>Finding</span><span>Key field</span><span>Promise it breaks</span></div>
+        <div class="tr"><span>Allowance above the daily cap</span><code>allowance</code><span>Daily spend cap</span></div>
+        <div class="tr"><span>Allowance with no cap at all</span><code>allowance = null</code><span>Daily spend cap</span></div>
+        <div class="tr"><span>Key with full access</span><code>permission = "FullAccess"</code><span>Cap, allowlist, no full access</span></div>
+        <div class="tr"><span>Key that can call any method</span><code>method_names = []</code><span>Named methods only</span></div>
+        <div class="tr"><span>Receiver not on the allowlist</span><code>receiver_id</code><span>Contract allowlist</span></div>
+      </div>
+    </section>
+
+    <section class="sec" id="scope">
+      <h2>Scope</h2>
+      <div class="scope">
+        <div><h3>Read only</h3><p>View calls only. Nothing is signed, no private key enters the app, and there is no contract to deploy.</p></div>
+        <div><h3>Testnet, v1</h3><p>No mainnet funds and no cross-chain intents. History, alerts and teams are out of scope.</p></div>
+        <div><h3>Permissions, not judgment</h3><p>KeyProof verifies key permissions, not whether the policy itself is sensible.</p></div>
+      </div>
+    </section>
+
+    <section class="cta">
+      <h2>Check an agent’s keys</h2>
+      <p>The example policy is already filled in. Use the recorded snapshots or read a live testnet account.</p>
+      <a class="btn pri" href="#check">Open checker</a>
+    </section>
+  </main>
+
+  <main id="tool" hidden>
+    <div class="lede small">
+      <h1>Check an agent’s keys</h1>
+      <p>Write the policy, pick a key source, and read the verdict.</p>
+    </div>
+    <div class="grid">
+      <section class="left" aria-label="Policy">
+        <h2>Spending policy</h2>
+        <textarea id="pol" spellcheck="false" aria-label="Spending policy"></textarea>
+        <h2 class="gap">Rules understood</h2>
+        <ul class="rules" id="rules" aria-live="polite"></ul>
+        <p class="small">One sentence per line, in these forms. Edit the numbers and contract names.</p>
+        <h2 class="gap">Key source</h2>
+        <div class="tabs" id="seg" role="tablist" aria-label="Key source">
+          <button type="button" role="tab" data-src="before" aria-selected="true">Before fix</button>
+          <button type="button" role="tab" data-src="after" aria-selected="false">After fix</button>
+          <button type="button" role="tab" data-src="live" aria-selected="false">Live testnet</button>
+        </div>
+        <div class="row">
+          <button class="pri" id="go">Check keys</button>
+          <button class="lnk" id="copy" hidden>Copy report</button>
+          <button class="lnk" id="dl" hidden>Download</button>
+        </div>
+        <p class="trust">Read only. Nothing is signed. No keys are requested.</p>
+      </section>
+      <section class="verdict" aria-live="polite" aria-label="Verdict">
+        <div id="v"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <p>KeyProof verifies key permissions, not whether the policy itself is sensible.</p>
+    <p>A function call key’s allowance bounds gas fees. It is the only spend limit the key carries, so that is the field compared with the daily cap.</p>
+    <p>Snapshots are recorded fixtures for agent-ops.testnet, not live data. Built for the NEAR Hackathon, track 06.</p>
+  </footer>
+</div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
