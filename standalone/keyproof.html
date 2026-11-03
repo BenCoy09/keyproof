@@ -193,6 +193,7 @@ button.lnk{border:0;background:none;padding:8px 4px;min-height:40px;text-decorat
     <nav class="nav" aria-label="Main">
       <a href="#how">How it works</a>
       <a href="#finds">What it finds</a>
+      <a href="#guard">Guard</a>
       <a href="#scope">Scope</a>
       <a class="btn" href="#check">Open checker</a>
     </nav>
@@ -203,7 +204,7 @@ button.lnk{border:0;background:none;padding:8px 4px;min-height:40px;text-decorat
       <div>
         <p class="tag">NEAR testnet · read only</p>
         <h1>Prompts are not permissions.</h1>
-        <p class="sub">KeyProof reads an AI agent’s access keys on chain and proves whether it can exceed the spending policy a human wrote.</p>
+        <p class="sub">KeyProof reads an AI agent’s access keys on chain and proves whether it can exceed the spending policy a human wrote. Add the guard contract and the limits are enforced, not only reported.</p>
         <div class="row">
           <a class="btn pri" href="#check">Check an agent’s keys</a>
           <a class="btn" href="#how">How it works</a>
@@ -216,7 +217,7 @@ button.lnk{border:0;background:none;padding:8px 4px;min-height:40px;text-decorat
     <section class="sec" id="how">
       <h2>How it works</h2>
       <ol class="steps">
-        <li><span class="n">1</span><h3>Write the policy</h3><p>Sentences in a fixed template: a daily cap, a contract allowlist, no full access keys, named methods only.</p><code>The agent may spend up to 5 NEAR per day.</code></li>
+        <li><span class="n">1</span><h3>Write the policy</h3><p>Sentences in a fixed template: an allowance limit, a contract allowlist, no full access keys, named methods only, and optional guard rules.</p><code>The agent may spend up to 5 NEAR per day.</code></li>
         <li><span class="n">2</span><h3>Read the keys</h3><p>KeyProof queries the agent’s account and reads permission, allowance, receiver and method scope for every access key.</p><code>view_access_key_list</code></li>
         <li><span class="n">3</span><h3>Read the verdict</h3><p>Each promise is marked holds, can be exceeded or unknown, with the key field that breaks it next to the sentence that promised otherwise.</p><code>keys[1].allowance = 12 NEAR</code></li>
       </ol>
@@ -231,13 +232,27 @@ button.lnk{border:0;background:none;padding:8px 4px;min-height:40px;text-decorat
         <div class="tr"><span>Key with full access</span><code>permission = "FullAccess"</code><span>Cap, allowlist, no full access</span></div>
         <div class="tr"><span>Key that can call any method</span><code>method_names = []</code><span>Named methods only</span></div>
         <div class="tr"><span>Receiver not on the allowlist</span><code>receiver_id</code><span>Contract allowlist</span></div>
+        <div class="tr"><span>Guard cap above your limit</span><code>guard.daily_cap</code><span>Guard spend cap</span></div>
+        <div class="tr"><span>Guard can pay an unlisted account</span><code>guard.pay_to</code><span>Guard recipients</span></div>
+        <div class="tr"><span>Agent owns its own guard</span><code>guard.owner</code><span>Guard control</span></div>
       </div>
+    </section>
+
+    <section class="sec" id="guard">
+      <h2>Verify and enforce</h2>
+      <p class="sub" style="font-size:16px;margin-bottom:24px">KeyProof on its own reports. The guard contract is what stops the bad call. Together they close the gap between what you wrote and what the agent can do.</p>
+      <ol class="steps">
+        <li><span class="n">1</span><h3>The guard enforces</h3><p>A human owner funds a guard contract with a daily cap and a recipient allowlist. A call that breaks a rule reverts, and no NEAR moves.</p><code>spend(to, amount_yocto)</code></li>
+        <li><span class="n">2</span><h3>The agent’s key reaches only the guard</h3><p>The agent’s account holds one function call key that can call spend on the guard and nothing else. KeyProof checks its receiver, methods and permissions.</p><code>receiver_id = "kp-guard.testnet"</code></li>
+        <li><span class="n">3</span><h3>KeyProof reads the guard</h3><p>It calls the guard’s get_policy view and compares the cap, the recipients and the owner with the policy a human wrote.</p><code>guard.daily_cap = 2 NEAR</code></li>
+      </ol>
+      <p class="small" style="margin-top:24px">Testnet only. The guard is not audited and only protects the money it holds.</p>
     </section>
 
     <section class="sec" id="scope">
       <h2>Scope</h2>
       <div class="scope">
-        <div><h3>Read only</h3><p>View calls only. Nothing is signed, no private key enters the app, and there is no contract to deploy.</p></div>
+        <div><h3>Read only checker</h3><p>The checker uses view calls only. Nothing is signed and no private key enters the app. The guard is a separate contract you deploy yourself.</p></div>
         <div><h3>Testnet, v1</h3><p>No mainnet funds and no cross-chain intents. History, alerts and teams are out of scope.</p></div>
         <div><h3>Permissions, not judgment</h3><p>KeyProof verifies key permissions, not whether the policy itself is sensible.</p></div>
       </div>
@@ -262,6 +277,7 @@ button.lnk{border:0;background:none;padding:8px 4px;min-height:40px;text-decorat
         <h2 class="gap">Rules understood</h2>
         <ul class="rules" id="rules" aria-live="polite"></ul>
         <p class="small">One sentence per line, in these forms. Edit the numbers and contract names.</p>
+        <div class="row" style="margin:4px 0 0"><button type="button" class="lnk" id="ex-basic">Basic example</button><button type="button" class="lnk" id="ex-guard">Guard example</button></div>
         <h2 class="gap">Key source</h2>
         <div class="tabs" id="seg" role="tablist" aria-label="Key source">
           <button type="button" role="tab" data-src="before" aria-selected="true">Before fix</button>
@@ -302,15 +318,25 @@ The agent may spend up to 5 NEAR per day.
 The agent may only call these contracts: wrap.testnet, v2.ref-finance.testnet
 The agent must not hold a full access key.
 The agent may only call named methods.`;
+const EXAMPLE_GUARD_POLICY = `Account: kp-agent.testnet
+The agent may only call these contracts: kp-guard.testnet
+The agent must not hold a full access key.
+The agent may only call named methods.
+The guard kp-guard.testnet caps spending at 2 NEAR per day.
+The guard kp-guard.testnet may only pay these accounts: kp-owner.testnet`;
+const list = (s) => s.replace(/\.$/, "").split(",").map((x) => x.trim()).filter(Boolean);
 function classify(line) {
     let m;
     if ((m = line.match(/^account:\s*(\S+)$/i)))
         return { t: "account", v: m[1] };
+    if ((m = line.match(/^the guard (\S+) caps spending at ([\d.]+) near per day\.?$/i)))
+        return { t: "guardcap", guard: m[1], v: parseFloat(m[2]) };
+    if ((m = line.match(/^the guard (\S+) may only pay these accounts:\s*(.+)$/i)))
+        return { t: "guardpay", guard: m[1], v: list(m[2]) };
     if ((m = line.match(/up to ([\d.]+) near per day/i)))
         return { t: "cap", v: parseFloat(m[1]) };
-    if ((m = line.match(/only call these contracts:\s*(.+)$/i))) {
-        return { t: "allow", v: m[1].replace(/\.$/, "").split(",").map((s) => s.trim()).filter(Boolean) };
-    }
+    if ((m = line.match(/only call these contracts:\s*(.+)$/i)))
+        return { t: "allow", v: list(m[1]) };
     if (/must not hold a full access key/i.test(line))
         return { t: "nofull" };
     if (/only call named methods/i.test(line))
@@ -329,10 +355,12 @@ function readLines(text) {
             return { text: line, ok: false, label: "Not recognised", detail: line };
         switch (p.t) {
             case "account": return { text: line, ok: true, label: "Account", detail: p.v };
-            case "cap": return { text: line, ok: true, label: "Daily cap", detail: `${p.v} NEAR` };
+            case "cap": return { text: line, ok: true, label: "Allowance limit", detail: `${p.v} NEAR` };
             case "allow": return { text: line, ok: true, label: `Allowed contracts (${p.v.length})`, detail: p.v.join(", ") };
             case "nofull": return { text: line, ok: true, label: "No full access key", detail: "" };
             case "named": return { text: line, ok: true, label: "Named methods only", detail: "" };
+            case "guardcap": return { text: line, ok: true, label: "Guard daily cap", detail: `${p.guard}: ${p.v} NEAR per day` };
+            case "guardpay": return { text: line, ok: true, label: `Guard recipients (${p.v.length})`, detail: `${p.guard}: ${p.v.join(", ")}` };
         }
     });
 }
@@ -343,6 +371,13 @@ function readLines(text) {
  */
 function parsePolicy(text) {
     const policy = { account: "", lines: {} };
+    const setGuard = (account) => {
+        if (policy.guard && policy.guard.account !== account) {
+            throw new PolicyError("The guard sentences name two different contracts. Use one guard per policy.");
+        }
+        policy.guard = policy.guard ?? { account };
+        return policy.guard;
+    };
     for (const line of linesOf(text)) {
         const p = classify(line);
         if (!p) {
@@ -366,15 +401,25 @@ function parsePolicy(text) {
             case "named":
                 policy.lines.named = line;
                 break;
+            case "guardcap":
+                setGuard(p.guard).cap = p.v;
+                policy.lines.guardCap = line;
+                break;
+            case "guardpay":
+                setGuard(p.guard).pay = p.v;
+                policy.lines.guardPay = line;
+                break;
         }
     }
     if (!policy.account)
         throw new PolicyError("Add a first line in the form “Account: name.testnet”.");
-    if (policy.cap === undefined && !policy.allow && !policy.lines.nofull && !policy.lines.named) {
+    const any = policy.cap !== undefined || policy.allow || policy.lines.nofull || policy.lines.named || policy.guard;
+    if (!any)
         throw new PolicyError("No policy sentence found. Add at least one sentence in the forms shown under the policy box.");
-    }
     if (policy.cap !== undefined && !Number.isFinite(policy.cap))
         throw new PolicyError("The daily cap is not a number.");
+    if (policy.guard?.cap !== undefined && !Number.isFinite(policy.guard.cap))
+        throw new PolicyError("The guard cap is not a number.");
     return policy;
 }
 
@@ -383,7 +428,7 @@ function parsePolicy(text) {
  * A promise gets "unknown" only if no key broke it but some key had a
  * permission type this tool does not read.
  */
-function check(policy, keys) {
+function check(policy, keys, guard) {
     const results = [];
     const fcs = keys.filter((k) => k.kind === "fc");
     const full = keys.filter((k) => k.kind === "full").length;
@@ -455,6 +500,48 @@ function check(policy, keys) {
             out.push({ sentence: `${shortKey(k.pk)} has full access.`, field: `keys[${i}].permission = "FullAccess"` });
         }
     });
+    // ---- guard contract promises (only when the policy names a guard) ----
+    const g = policy.guard;
+    if (g) {
+        const decided = (f) => (f.length ? f[0].field + (f.length > 1 ? ` (+${f.length - 1} more)` : "") : "none");
+        const unknown = (title, line) => results.push({ title, line, allows: "guard policy could not be read", decidedBy: "none", findings: [], verdict: "unknown" });
+        if (policy.lines.guardCap) {
+            if (!guard)
+                unknown("Guard spend cap", policy.lines.guardCap);
+            else {
+                const f = [];
+                if (g.cap !== undefined && guard.dailyCapNear > g.cap) {
+                    f.push({ sentence: `${g.account} allows ${guard.dailyCapNear} NEAR per day, above the ${g.cap} NEAR limit.`, field: `guard.daily_cap = ${guard.dailyCapNear} NEAR` });
+                }
+                results.push({ title: "Guard spend cap", line: policy.lines.guardCap, allows: `${g.account} allows ${guard.dailyCapNear} NEAR per day`, decidedBy: decided(f), findings: f, verdict: f.length ? "can be exceeded" : "holds" });
+            }
+        }
+        if (policy.lines.guardPay) {
+            if (!guard)
+                unknown("Guard recipients", policy.lines.guardPay);
+            else {
+                const f = guard.payTo
+                    .filter((a) => !(g.pay ?? []).includes(a))
+                    .map((a) => ({ sentence: `${g.account} can pay ${a}, which is not on the allowed list.`, field: `guard.pay_to includes "${a}"` }));
+                results.push({ title: "Guard recipients", line: policy.lines.guardPay, allows: `pays ${guard.payTo.join(", ") || "nobody"}`, decidedBy: decided(f), findings: f, verdict: f.length ? "can be exceeded" : "holds" });
+            }
+        }
+        const controlLine = policy.lines.guardCap ?? policy.lines.guardPay;
+        if (controlLine) {
+            if (!guard)
+                unknown("Guard control", controlLine);
+            else {
+                const f = [];
+                if (guard.agent !== policy.account) {
+                    f.push({ sentence: `${g.account} pays ${guard.agent}, not ${policy.account}.`, field: `guard.agent = "${guard.agent}"` });
+                }
+                if (guard.owner === policy.account) {
+                    f.push({ sentence: `${policy.account} owns its own guard, so it can change the rules.`, field: `guard.owner = "${guard.owner}"` });
+                }
+                results.push({ title: "Guard control", line: controlLine, allows: `owner ${guard.owner}, pays ${guard.agent}`, decidedBy: decided(f), findings: f, verdict: f.length ? "can be exceeded" : "holds" });
+            }
+        }
+    }
     return results;
 }
 
@@ -487,6 +574,24 @@ const SOURCE_LABEL = {
     live: "live, NEAR testnet RPC",
 };
 const SNAPSHOT_EVIDENCE = ["recorded fixture", "not read from chain"];
+const GK = {
+    full: "ed25519:Lm5Qr9TcWx2YpBn7ZvHs4KdMe8JgUa3FoRi6NtCw1S",
+    fc: "ed25519:Ap6Nr2KtXc8VpLw5NbHs9YdJe3GuTa7FoQi4WnCx1D",
+};
+/** Recorded fixtures for the guard example: kp-agent.testnet guarded by kp-guard.testnet. */
+const GUARD_SNAPSHOTS = {
+    before: {
+        keys: [
+            { pk: GK.full, kind: "full" },
+            fc(GK.fc, toYocto(1), "kp-guard.testnet", ["spend"]),
+        ],
+        guard: { owner: "kp-agent.testnet", agent: "kp-agent.testnet", dailyCapNear: 50, payTo: ["kp-owner.testnet", "unknown-dex.testnet"], spentTodayNear: 0 },
+    },
+    after: {
+        keys: [fc(GK.fc, toYocto(1), "kp-guard.testnet", ["spend"])],
+        guard: { owner: "kp-owner.testnet", agent: "kp-agent.testnet", dailyCapNear: 2, payTo: ["kp-owner.testnet"], spentTodayNear: 0 },
+    },
+};
 
 class RpcError extends Error {
 }
@@ -539,6 +644,47 @@ async function fetchKeys(account) {
     if (body.result.block_hash)
         evidence.push(`hash ${String(body.result.block_hash).slice(0, 8)}…`);
     return { keys, evidence };
+}
+/**
+ * Reads the guard contract's get_policy view call. View calls only: nothing is signed.
+ */
+async function fetchGuard(account) {
+    let res;
+    try {
+        res = await fetch(RPC_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: "keyproof-guard",
+                method: "query",
+                params: { request_type: "call_function", finality: "final", account_id: account, method_name: "get_policy", args_base64: btoa("{}") },
+            }),
+        });
+    }
+    catch {
+        throw new RpcError(`Could not reach ${RPC_URL} to read the guard.`);
+    }
+    if (!res.ok)
+        throw new RpcError(`${RPC_URL} answered with HTTP ${res.status} while reading the guard.`);
+    const body = await res.json();
+    const err = body.error ?? body.result?.error;
+    if (err)
+        throw new RpcError(`${account} has no readable guard (get_policy failed).`);
+    let p;
+    try {
+        p = JSON.parse(new TextDecoder().decode(Uint8Array.from(body.result.result)));
+    }
+    catch {
+        throw new RpcError(`${account} returned a policy KeyProof could not read.`);
+    }
+    return {
+        owner: p.owner,
+        agent: p.agent,
+        dailyCapNear: toNear(p.daily_cap_yocto),
+        payTo: p.pay_to,
+        spentTodayNear: toNear(p.spent_today_yocto),
+    };
 }
 
 function headline(results) {
@@ -842,11 +988,27 @@ async function run(first) {
     try {
         if (source === "live") {
             reading = await fetchKeys(policy.account);
+            if (policy.guard) {
+                try {
+                    reading.guard = await fetchGuard(policy.guard.account);
+                    reading.evidence = [...reading.evidence, "guard get_policy read"];
+                }
+                catch (e) {
+                    reading.guard = null;
+                    reading.evidence = [...reading.evidence, "guard: " + (e instanceof RpcError ? e.message : "unreadable")];
+                }
+            }
         }
         else {
             if (!first)
                 await new Promise((r) => setTimeout(r, 350));
-            reading = { keys: SNAPSHOTS[source], evidence: SNAPSHOT_EVIDENCE };
+            if (policy.guard) {
+                const gs = GUARD_SNAPSHOTS[source];
+                reading = { keys: gs.keys, guard: gs.guard, evidence: SNAPSHOT_EVIDENCE };
+            }
+            else {
+                reading = { keys: SNAPSHOTS[source], evidence: SNAPSHOT_EVIDENCE };
+            }
         }
     }
     catch (e) {
@@ -855,7 +1017,7 @@ async function run(first) {
     if (reading.keys.length === 0) {
         return showError("No keys found", `${policy.account} returned 0 access keys on testnet. KeyProof gives no verdict on zero keys, because “every promise holds” would be a false result. Put your own testnet account on the first policy line, or switch to a snapshot.`);
     }
-    render(policy, reading, check(policy, reading.keys), source);
+    render(policy, reading, check(policy, reading.keys, reading.guard), source);
 }
 function route() {
     const tool = location.hash === "#check";
@@ -878,6 +1040,13 @@ document.querySelectorAll("#seg button").forEach((b) => {
     };
 });
 $("go").onclick = () => void run(false);
+const loadExample = (text) => {
+    $("pol").value = text;
+    renderRules();
+    void run(false);
+};
+$("ex-basic").onclick = () => loadExample(EXAMPLE_POLICY);
+$("ex-guard").onclick = () => loadExample(EXAMPLE_GUARD_POLICY);
 $("dl").onclick = () => downloadText(reportName, report);
 $("copy").onclick = async () => {
     const b = $("copy");

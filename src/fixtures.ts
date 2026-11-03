@@ -1,4 +1,4 @@
-import type { Key, SourceId } from "./types";
+import type { GuardState, Key, SourceId } from "./types";
 import { toYocto } from "./units";
 
 const PK = {
@@ -34,3 +34,23 @@ export const SOURCE_LABEL: Record<SourceId, string> = {
 };
 
 export const SNAPSHOT_EVIDENCE = ["recorded fixture", "not read from chain"];
+
+const GK = {
+  full: "ed25519:Lm5Qr9TcWx2YpBn7ZvHs4KdMe8JgUa3FoRi6NtCw1S",
+  fc: "ed25519:Ap6Nr2KtXc8VpLw5NbHs9YdJe3GuTa7FoQi4WnCx1D",
+};
+
+/** Recorded fixtures for the guard example: kp-agent.testnet guarded by kp-guard.testnet. */
+export const GUARD_SNAPSHOTS: Record<"before" | "after", { keys: Key[]; guard: GuardState }> = {
+  before: {
+    keys: [
+      { pk: GK.full, kind: "full" },
+      fc(GK.fc, toYocto(1), "kp-guard.testnet", ["spend"]),
+    ],
+    guard: { owner: "kp-agent.testnet", agent: "kp-agent.testnet", dailyCapNear: 50, payTo: ["kp-owner.testnet", "unknown-dex.testnet"], spentTodayNear: 0 },
+  },
+  after: {
+    keys: [fc(GK.fc, toYocto(1), "kp-guard.testnet", ["spend"])],
+    guard: { owner: "kp-owner.testnet", agent: "kp-agent.testnet", dailyCapNear: 2, payTo: ["kp-owner.testnet"], spentTodayNear: 0 },
+  },
+};

@@ -8,7 +8,18 @@ export interface Policy {
   cap?: number;
   allow?: string[];
   /** The original sentence for each promise, shown next to a finding. */
-  lines: { cap?: string; allow?: string; named?: string; nofull?: string };
+  /** A guard contract the policy refers to, if any. */
+  guard?: { account: string; cap?: number; pay?: string[] };
+  lines: { cap?: string; allow?: string; named?: string; nofull?: string; guardCap?: string; guardPay?: string };
+}
+
+/** What a guard contract reports from its get_policy view call. */
+export interface GuardState {
+  owner: string;
+  agent: string;
+  dailyCapNear: number;
+  payTo: string[];
+  spentTodayNear: number;
 }
 
 export type Verdict = "holds" | "can be exceeded" | "unknown";
@@ -40,6 +51,7 @@ export type SourceId = "before" | "after" | "live";
 
 export interface Reading {
   keys: Key[];
+  guard?: GuardState | null;
   /** Short facts about where the keys came from, shown as the proof record. */
   evidence: string[];
 }

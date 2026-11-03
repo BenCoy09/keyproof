@@ -17,6 +17,7 @@
     <nav class="nav" aria-label="Main">
       <a href="#how">How it works</a>
       <a href="#finds">What it finds</a>
+      <a href="#guard">Guard</a>
       <a href="#scope">Scope</a>
       <a class="btn" href="#check">Open checker</a>
     </nav>
@@ -27,7 +28,7 @@
       <div>
         <p class="tag">NEAR testnet · read only</p>
         <h1>Prompts are not permissions.</h1>
-        <p class="sub">KeyProof reads an AI agent’s access keys on chain and proves whether it can exceed the spending policy a human wrote.</p>
+        <p class="sub">KeyProof reads an AI agent’s access keys on chain and proves whether it can exceed the spending policy a human wrote. Add the guard contract and the limits are enforced, not only reported.</p>
         <div class="row">
           <a class="btn pri" href="#check">Check an agent’s keys</a>
           <a class="btn" href="#how">How it works</a>
@@ -40,7 +41,7 @@
     <section class="sec" id="how">
       <h2>How it works</h2>
       <ol class="steps">
-        <li><span class="n">1</span><h3>Write the policy</h3><p>Sentences in a fixed template: a daily cap, a contract allowlist, no full access keys, named methods only.</p><code>The agent may spend up to 5 NEAR per day.</code></li>
+        <li><span class="n">1</span><h3>Write the policy</h3><p>Sentences in a fixed template: an allowance limit, a contract allowlist, no full access keys, named methods only, and optional guard rules.</p><code>The agent may spend up to 5 NEAR per day.</code></li>
         <li><span class="n">2</span><h3>Read the keys</h3><p>KeyProof queries the agent’s account and reads permission, allowance, receiver and method scope for every access key.</p><code>view_access_key_list</code></li>
         <li><span class="n">3</span><h3>Read the verdict</h3><p>Each promise is marked holds, can be exceeded or unknown, with the key field that breaks it next to the sentence that promised otherwise.</p><code>keys[1].allowance = 12 NEAR</code></li>
       </ol>
@@ -55,13 +56,27 @@
         <div class="tr"><span>Key with full access</span><code>permission = "FullAccess"</code><span>Cap, allowlist, no full access</span></div>
         <div class="tr"><span>Key that can call any method</span><code>method_names = []</code><span>Named methods only</span></div>
         <div class="tr"><span>Receiver not on the allowlist</span><code>receiver_id</code><span>Contract allowlist</span></div>
+        <div class="tr"><span>Guard cap above your limit</span><code>guard.daily_cap</code><span>Guard spend cap</span></div>
+        <div class="tr"><span>Guard can pay an unlisted account</span><code>guard.pay_to</code><span>Guard recipients</span></div>
+        <div class="tr"><span>Agent owns its own guard</span><code>guard.owner</code><span>Guard control</span></div>
       </div>
+    </section>
+
+    <section class="sec" id="guard">
+      <h2>Verify and enforce</h2>
+      <p class="sub" style="font-size:16px;margin-bottom:24px">KeyProof on its own reports. The guard contract is what stops the bad call. Together they close the gap between what you wrote and what the agent can do.</p>
+      <ol class="steps">
+        <li><span class="n">1</span><h3>The guard enforces</h3><p>A human owner funds a guard contract with a daily cap and a recipient allowlist. A call that breaks a rule reverts, and no NEAR moves.</p><code>spend(to, amount_yocto)</code></li>
+        <li><span class="n">2</span><h3>The agent’s key reaches only the guard</h3><p>The agent’s account holds one function call key that can call spend on the guard and nothing else. KeyProof checks its receiver, methods and permissions.</p><code>receiver_id = "kp-guard.testnet"</code></li>
+        <li><span class="n">3</span><h3>KeyProof reads the guard</h3><p>It calls the guard’s get_policy view and compares the cap, the recipients and the owner with the policy a human wrote.</p><code>guard.daily_cap = 2 NEAR</code></li>
+      </ol>
+      <p class="small" style="margin-top:24px">Testnet only. The guard is not audited and only protects the money it holds.</p>
     </section>
 
     <section class="sec" id="scope">
       <h2>Scope</h2>
       <div class="scope">
-        <div><h3>Read only</h3><p>View calls only. Nothing is signed, no private key enters the app, and there is no contract to deploy.</p></div>
+        <div><h3>Read only checker</h3><p>The checker uses view calls only. Nothing is signed and no private key enters the app. The guard is a separate contract you deploy yourself.</p></div>
         <div><h3>Testnet, v1</h3><p>No mainnet funds and no cross-chain intents. History, alerts and teams are out of scope.</p></div>
         <div><h3>Permissions, not judgment</h3><p>KeyProof verifies key permissions, not whether the policy itself is sensible.</p></div>
       </div>
@@ -86,6 +101,7 @@
         <h2 class="gap">Rules understood</h2>
         <ul class="rules" id="rules" aria-live="polite"></ul>
         <p class="small">One sentence per line, in these forms. Edit the numbers and contract names.</p>
+        <div class="row" style="margin:4px 0 0"><button type="button" class="lnk" id="ex-basic">Basic example</button><button type="button" class="lnk" id="ex-guard">Guard example</button></div>
         <h2 class="gap">Key source</h2>
         <div class="tabs" id="seg" role="tablist" aria-label="Key source">
           <button type="button" role="tab" data-src="before" aria-selected="true">Before fix</button>

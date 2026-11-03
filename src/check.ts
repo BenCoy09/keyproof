@@ -1,4 +1,4 @@
-import type { Finding, Key, Policy, PromiseResult } from "./types";
+import type { Finding, GuardState, Key, Policy, PromiseResult } from "./types";
 import { shortKey, toNear } from "./units";
 
 type FC = Extract<Key, { kind: "fc" }>;
@@ -9,7 +9,7 @@ type Rule = (key: Key, index: number, findings: Finding[]) => void;
  * A promise gets "unknown" only if no key broke it but some key had a
  * permission type this tool does not read.
  */
-export function check(policy: Policy, keys: Key[]): PromiseResult[] {
+export function check(policy: Policy, keys: Key[], guard?: GuardState | null): PromiseResult[] {
   const results: PromiseResult[] = [];
   const fcs = keys.filter((k): k is FC => k.kind === "fc");
   const full = keys.filter((k) => k.kind === "full").length;
@@ -84,6 +84,50 @@ export function check(policy: Policy, keys: Key[]): PromiseResult[] {
       out.push({ sentence: `${shortKey(k.pk)} has full access.`, field: `keys[${i}].permission = "FullAccess"` });
     }
   });
+
+  // ---- guard contract promises (only when the policy names a guard) ----
+  const g = policy.guard;
+  if (g) {
+    const decided = (f: Finding[]) => (f.length ? f[0].field + (f.length > 1 ? ` (+${f.length - 1} more)` : "") : "none");
+    const unknown = (title: string, line: string) =>
+      results.push({ title, line, allows: "guard policy could not be read", decidedBy: "none", findings: [], verdict: "unknown" });
+
+    if (policy.lines.guardCap) {
+      if (!guard) unknown("Guard spend cap", policy.lines.guardCap);
+      else {
+        const f: Finding[] = [];
+        if (g.cap !== undefined && guard.dailyCapNear > g.cap) {
+          f.push({ sentence: `${g.account} allows ${guard.dailyCapNear} NEAR per day, above the ${g.cap} NEAR limit.`, field: `guard.daily_cap = ${guard.dailyCapNear} NEAR` });
+        }
+        results.push({ title: "Guard spend cap", line: policy.lines.guardCap, allows: `${g.account} allows ${guard.dailyCapNear} NEAR per day`, decidedBy: decided(f), findings: f, verdict: f.length ? "can be exceeded" : "holds" });
+      }
+    }
+
+    if (policy.lines.guardPay) {
+      if (!guard) unknown("Guard recipients", policy.lines.guardPay);
+      else {
+        const f: Finding[] = guard.payTo
+          .filter((a) => !(g.pay ?? []).includes(a))
+          .map((a) => ({ sentence: `${g.account} can pay ${a}, which is not on the allowed list.`, field: `guard.pay_to includes "${a}"` }));
+        results.push({ title: "Guard recipients", line: policy.lines.guardPay, allows: `pays ${guard.payTo.join(", ") || "nobody"}`, decidedBy: decided(f), findings: f, verdict: f.length ? "can be exceeded" : "holds" });
+      }
+    }
+
+    const controlLine = policy.lines.guardCap ?? policy.lines.guardPay;
+    if (controlLine) {
+      if (!guard) unknown("Guard control", controlLine);
+      else {
+        const f: Finding[] = [];
+        if (guard.agent !== policy.account) {
+          f.push({ sentence: `${g.account} pays ${guard.agent}, not ${policy.account}.`, field: `guard.agent = "${guard.agent}"` });
+        }
+        if (guard.owner === policy.account) {
+          f.push({ sentence: `${policy.account} owns its own guard, so it can change the rules.`, field: `guard.owner = "${guard.owner}"` });
+        }
+        results.push({ title: "Guard control", line: controlLine, allows: `owner ${guard.owner}, pays ${guard.agent}`, decidedBy: decided(f), findings: f, verdict: f.length ? "can be exceeded" : "holds" });
+      }
+    }
+  }
 
   return results;
 }

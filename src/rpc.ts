@@ -1,4 +1,5 @@
-import type { Key, Reading } from "./types";
+import type { GuardState, Key, Reading } from "./types";
+import { toNear } from "./units";
 
 export class RpcError extends Error {}
 
@@ -58,4 +59,42 @@ export async function fetchKeys(account: string): Promise<Reading> {
   if (body.result.block_height) evidence.push(`block ${body.result.block_height}`);
   if (body.result.block_hash) evidence.push(`hash ${String(body.result.block_hash).slice(0, 8)}…`);
   return { keys, evidence };
+}
+
+/**
+ * Reads the guard contract's get_policy view call. View calls only: nothing is signed.
+ */
+export async function fetchGuard(account: string): Promise<GuardState> {
+  let res: Response;
+  try {
+    res = await fetch(RPC_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "keyproof-guard",
+        method: "query",
+        params: { request_type: "call_function", finality: "final", account_id: account, method_name: "get_policy", args_base64: btoa("{}") },
+      }),
+    });
+  } catch {
+    throw new RpcError(`Could not reach ${RPC_URL} to read the guard.`);
+  }
+  if (!res.ok) throw new RpcError(`${RPC_URL} answered with HTTP ${res.status} while reading the guard.`);
+  const body = await res.json();
+  const err = body.error ?? body.result?.error;
+  if (err) throw new RpcError(`${account} has no readable guard (get_policy failed).`);
+  let p: { owner: string; agent: string; daily_cap_yocto: string; pay_to: string[]; spent_today_yocto: string };
+  try {
+    p = JSON.parse(new TextDecoder().decode(Uint8Array.from(body.result.result as number[])));
+  } catch {
+    throw new RpcError(`${account} returned a policy KeyProof could not read.`);
+  }
+  return {
+    owner: p.owner,
+    agent: p.agent,
+    dailyCapNear: toNear(p.daily_cap_yocto),
+    payTo: p.pay_to,
+    spentTodayNear: toNear(p.spent_today_yocto),
+  };
 }

@@ -1,9 +1,9 @@
 import "./style.css";
 import { check } from "./check";
-import { SNAPSHOTS, SNAPSHOT_EVIDENCE, SOURCE_LABEL } from "./fixtures";
-import { EXAMPLE_POLICY, parsePolicy, readLines } from "./parse";
+import { GUARD_SNAPSHOTS, SNAPSHOTS, SNAPSHOT_EVIDENCE, SOURCE_LABEL } from "./fixtures";
+import { EXAMPLE_GUARD_POLICY, EXAMPLE_POLICY, parsePolicy, readLines } from "./parse";
 import { buildReport, downloadText } from "./report";
-import { fetchKeys, RpcError } from "./rpc";
+import { fetchGuard, fetchKeys, RpcError } from "./rpc";
 import { startSim } from "./sim";
 import type { Key, Policy, PromiseResult, Reading, SourceId } from "./types";
 import { shortKey, toNear } from "./units";
@@ -120,9 +120,23 @@ async function run(first: boolean) {
   try {
     if (source === "live") {
       reading = await fetchKeys(policy.account);
+      if (policy.guard) {
+        try {
+          reading.guard = await fetchGuard(policy.guard.account);
+          reading.evidence = [...reading.evidence, "guard get_policy read"];
+        } catch (e) {
+          reading.guard = null;
+          reading.evidence = [...reading.evidence, "guard: " + (e instanceof RpcError ? e.message : "unreadable")];
+        }
+      }
     } else {
       if (!first) await new Promise((r) => setTimeout(r, 350));
-      reading = { keys: SNAPSHOTS[source], evidence: SNAPSHOT_EVIDENCE };
+      if (policy.guard) {
+        const gs = GUARD_SNAPSHOTS[source];
+        reading = { keys: gs.keys, guard: gs.guard, evidence: SNAPSHOT_EVIDENCE };
+      } else {
+        reading = { keys: SNAPSHOTS[source], evidence: SNAPSHOT_EVIDENCE };
+      }
     }
   } catch (e) {
     return showError("Could not read keys", e instanceof RpcError ? e.message : "Unexpected error while reading keys.");
@@ -133,7 +147,7 @@ async function run(first: boolean) {
       `${policy.account} returned 0 access keys on testnet. KeyProof gives no verdict on zero keys, because “every promise holds” would be a false result. Put your own testnet account on the first policy line, or switch to a snapshot.`
     );
   }
-  render(policy, reading, check(policy, reading.keys), source);
+  render(policy, reading, check(policy, reading.keys, reading.guard), source);
 }
 
 function route() {
@@ -156,6 +170,13 @@ document.querySelectorAll<HTMLButtonElement>("#seg button").forEach((b) => {
   };
 });
 $("go").onclick = () => void run(false);
+const loadExample = (text: string) => {
+  $<HTMLTextAreaElement>("pol").value = text;
+  renderRules();
+  void run(false);
+};
+$("ex-basic").onclick = () => loadExample(EXAMPLE_POLICY);
+$("ex-guard").onclick = () => loadExample(EXAMPLE_GUARD_POLICY);
 $("dl").onclick = () => downloadText(reportName, report);
 $("copy").onclick = async () => {
   const b = $<HTMLButtonElement>("copy");

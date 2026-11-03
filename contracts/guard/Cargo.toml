@@ -1,0 +1,20 @@
+[package]
+name = "keyproof-guard"
+version = "0.1.0"
+edition = "2021"
+description = "Spending guard for AI agents on NEAR: a daily cap and a recipient allowlist, enforced on chain."
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "5.6"
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true
