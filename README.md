@@ -5,6 +5,12 @@ Write your AI agent's spending policy in plain English. KeyProof reads the agent
 Prompts are not permissions. The check happens on the chain, not in the prompt.
 
 Built for the NEAR Hackathon, track 06: AI Security and Defense.
+## What the checks mean on NEAR
+
+A function call key cannot transfer NEAR or attach a deposit. Its allowance is the most NEAR it can spend on gas. KeyProof compares that allowance with your limit, and flags keys with no allowance (unlimited gas), keys that can call any method, and receivers that are not on your allowlist. It also flags full access keys, which can move funds directly.
+
+The attack animation on the landing page illustrates keys going past a policy. It is not a transaction. The example account `agent-ops.testnet` is a recorded fixture. KeyProof does not read gas keys (NEP-611) specially, so they may show as unknown. It checks key permissions, not whether the policy itself is sensible.
+
 
 ## Who it is for
 
