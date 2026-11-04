@@ -172,3 +172,16 @@ Commands: `npm run dev`, `npm run build`, `npm run typecheck`.
 ## License
 
 MIT
+
+## Live proof (NEAR testnet)
+
+The guard is deployed on testnet and was attacked with the agent's restricted key: a function call key that can only call `spend` on the guard.
+
+Accounts: guard `kp-guard-24156.testnet`, agent `kp-agent-10943.testnet`, owner `kp-owner-24156.testnet`. Policy: 2 NEAR per day, the owner is the only allowed recipient.
+
+- Spend 1 NEAR to the owner: allowed, went through.
+- Spend 1.5 NEAR more (over the cap): reverted, `daily cap exceeded`.
+- Pay a stranger account: reverted, `recipient is not on the allowlist`.
+- Agent tries to raise its own cap: refused by the key itself, `method name set_daily_cap isn't allowed by the access key`.
+
+Reproduce with `bash scripts/guard-demo.sh`. Testnet only, not audited.
